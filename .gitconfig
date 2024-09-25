@@ -11,7 +11,8 @@
 	brd = branch -d
 	cob = checkout -b
 	adu = add -u
-	undo = "!f() { \\\n    git reset --hard $(git rev-parse --abbrev-ref HEAD)@{${1-1}}; \\\n}; f"
+	cmt = commit -m
+	undo = "!f() { git reset --hard $(git rev-parse --abbrev-ref HEAD)@{${1-1}} && git checkout $(git rev-parse --abbrev-ref HEAD); }; f"
 [core]
 	editor = code --wait
 	symlinks = true
