@@ -1,0 +1,25 @@
+[init]
+	defaultBranch = main
+[user]
+	name = Takumi Okayasu
+	email = okayasutakumi.nft@gmail.com
+[alias]
+	s = status
+	ss = status -s
+	co = checkout
+	br-rename = branch -m
+	brd = branch -d
+	cob = checkout -b
+	adu = add -u
+	undo = "!f() { \\\n    git reset --hard $(git rev-parse --abbrev-ref HEAD)@{${1-1}}; \\\n}; f"
+[core]
+	editor = code --wait
+	symlinks = true
+
+[safe]
+	directory = /home/okayasu/prog
+
+[url "github:"]
+    InsteadOf = https://github.com/
+    InsteadOf = git@github.com:
+

@@ -1,0 +1,10 @@
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias grep='grep --color=auto'
+alias lla='ls -alXv --human-readable --time-style=long-iso --group-directories-first --color=auto'
+alias ls='ls -lXv --human-readable --color=auto'
+alias pshttpd='ps aux | grep httpd'
+alias vi='vim'
+alias .='source'
+alias cbcp='xsel --clipboard --input'
+
