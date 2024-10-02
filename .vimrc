@@ -65,3 +65,6 @@ nmap <Esc><Esc> :nohlsearch<CR><Esc>
 " コマンドライン補完
 set wildmenu
 
+" エディタ操作系
+set backspace=indent,eol,start
+
