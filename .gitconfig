@@ -16,11 +16,11 @@
 [core]
 	editor = code --wait
 	symlinks = true
-
 [safe]
 	directory = /home/okayasu/prog
-
-[url "github:"]
-    InsteadOf = https://github.com/
-    InsteadOf = git@github.com:
-
+[credential "https://github.com"]
+	helper = !/home/linuxbrew/.linuxbrew/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = !/home/linuxbrew/.linuxbrew/bin/gh auth git-credential
+[url "https://github.com/"]
+	insteadOf = https://github.com/:
