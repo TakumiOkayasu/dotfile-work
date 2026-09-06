@@ -25,6 +25,11 @@
 - Packageの追加や一般的な機能の再実装前に,既存dependencyのdocs,types,導入済みversionを確認する. Libraryはmaintenance,security,license,運用costを含むtotal complexityを下げる,またはreliabilityを高める場合だけ追加する.
 - Public API,永続data,auth,security boundaryなど,後から変更するcostが高いdecisionは長期的に設計する. それ以外は単純でreversibleな選択を優先する.
 
+## Visual design baseline
+
+- UI,画面,Webサイト,プロトタイプの視覚設計・実装・レビューでは,既存デザイン機能を使う前に`dads-design.md` ruleを読み,DADSを必須基準として適用する. 明示的なDADS指定や特定のskill起動を条件にしない.
+- ruleはこの指示ファイルに対応する`rules/dads-design.md`を参照する. 取得できなければ不足を報告し,準拠済みとは扱わない. 委譲時にも基準を渡し,出力前に根拠付きで検証する.
+
 ## Verification
 
 - 関連するproject-defined test,lint,type check,buildを実行し,最終diffを確認する.
