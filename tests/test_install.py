@@ -1205,6 +1205,148 @@ class TestRulesEnforceScanner:
         assert violations[0].line_no == 1
 
 
+class TestStowAncestorMigration:
+    @pytest.fixture
+    def installation(self, tmp_path: Path) -> tuple[Path, Path, Path]:
+        repo = tmp_path / "repo"
+        home = tmp_path / "home"
+        home.mkdir()
+        (repo / "scripts").mkdir(parents=True)
+        shutil.copy2(STOW_INSTALL_SH, repo / "scripts" / "stow-install.sh")
+        # Exercise the real installation boundary without unrelated categories.
+        library = INSTALL_SH.read_text(encoding="utf-8").rsplit('\nmain "$@"', 1)[0]
+        runner = repo / "install.sh"
+        runner.write_text(
+            library + '\nMODE_DRY_RUN=${TEST_DRY_RUN:-false}\n'
+            'install_stow_specs_file "$TEST_PACKAGE" "$TEST_SPECS"\n',
+            encoding="utf-8",
+        )
+        return repo, home, runner
+
+    def run_install(self, installation, parent: str, *, dry_run: bool = False):
+        repo, home, runner = installation
+        source = repo / "assets" / "entry.md"
+        source.parent.mkdir(exist_ok=True)
+        source.write_text("generated asset\n", encoding="utf-8")
+        specs = repo / "specs"
+        specs.write_text(f"assets/entry.md:{parent}/entry.md\n", encoding="utf-8")
+        return subprocess.run(
+            ["sh", str(runner)],
+            env={**os.environ, "HOME": str(home), "TEST_SPECS": str(specs),
+                 "TEST_PACKAGE": "codex" if parent.startswith(".codex") else "claude",
+                 "TEST_DRY_RUN": str(dry_run).lower()},
+            capture_output=True, text=True, timeout=30,
+        )
+
+    @pytest.mark.parametrize("parent", [
+        ".claude/commands", ".claude/notes", ".claude/scratch",
+        ".claude/skills/tdd", ".codex/agents",
+    ])
+    def test_migrates_directory_link_without_modifying_source(
+        self, installation, parent: str,
+    ) -> None:
+        repo, home, _ = installation
+        original = repo / "legacy"
+        original.mkdir()
+        (original / "entry.md").write_text("original asset\n", encoding="utf-8")
+        (original / "personal.md").write_text("personal notes\n", encoding="utf-8")
+        target = home / parent
+        target.parent.mkdir(parents=True)
+        target.symlink_to(os.path.relpath(original, target.parent))
+
+        for _ in range(2):
+            result = self.run_install(installation, parent)
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert (target / "entry.md").read_text() == "generated asset\n"
+            assert (original / "entry.md").read_text() == "original asset\n"
+            assert (original / "personal.md").read_text() == "personal notes\n"
+            assert sorted(p.name for p in original.iterdir()) == ["entry.md", "personal.md"]
+
+    def test_interactive_claude_codex_migration_and_uninstall(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        _create_fake_vendor(home)
+        originals = tmp_path / "originals"
+        paths = {
+            ".claude/commands": "common/commands",
+            ".claude/notes": "claude/notes",
+            ".claude/scratch": "claude/scratch",
+            ".claude/skills/tdd": "common/skills/tdd",
+            ".codex/agents": "codex/agents",
+        }
+        for dest, source in paths.items():
+            original = originals / dest
+            shutil.copytree(REPO_ROOT / source, original)
+            target = home / dest
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.symlink_to(original)
+        before = {p.relative_to(originals): p.read_bytes()
+                  for p in originals.rglob("*") if p.is_file()}
+
+        for _ in range(2):
+            result = subprocess.run(
+                ["sh", str(INSTALL_SH)], cwd=REPO_ROOT,
+                env={**os.environ, "HOME": str(home)}, input="5\ny\n6\nn\ny\n",
+                capture_output=True, text=True, timeout=30,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+            for dest, source in paths.items():
+                for file in (REPO_ROOT / source).rglob("*"):
+                    if file.is_file():
+                        assert (home / dest / file.relative_to(REPO_ROOT / source)).is_file()
+            assert {p.relative_to(originals): p.read_bytes()
+                    for p in originals.rglob("*") if p.is_file()} == before
+
+        result = _run_install_sh(REPO_ROOT, home, uninstall=True)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert not (home / ".claude/commands/fix.md").exists()
+        assert not (home / ".codex/agents/code_reviewer.toml").exists()
+        assert {p.relative_to(originals): p.read_bytes()
+                for p in originals.rglob("*") if p.is_file()} == before
+
+    @pytest.mark.parametrize("kind", ["directory-link", "broken-link", "file"])
+    def test_dry_run_preserves_obstructing_ancestor(self, installation, kind: str) -> None:
+        repo, home, _ = installation
+        original = repo / "legacy"
+        original.mkdir()
+        (original / "entry.md").write_text("original\n", encoding="utf-8")
+        target = home / ".claude" / "commands"
+        target.parent.mkdir()
+        if kind == "file":
+            target.write_text("local file\n", encoding="utf-8")
+        else:
+            target.symlink_to(original if kind == "directory-link" else repo / "missing")
+
+        result = self.run_install(installation, ".claude/commands", dry_run=True)
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert not (repo / ".stow-work").exists()
+        assert (original / "entry.md").read_text() == "original\n"
+        assert not target.with_name("commands.bak").exists()
+        if kind == "file":
+            assert target.read_text() == "local file\n"
+        else:
+            assert target.is_symlink()
+
+    @pytest.mark.parametrize("kind", ["broken-link", "file"])
+    def test_migrates_obstructing_ancestor(self, installation, kind: str) -> None:
+        repo, home, _ = installation
+        target = home / ".claude" / "commands"
+        target.parent.mkdir()
+        if kind == "file":
+            target.write_text("local file\n", encoding="utf-8")
+            target.with_name("commands.bak").write_text("older backup\n", encoding="utf-8")
+        else:
+            target.symlink_to(repo / "missing")
+
+        result = self.run_install(installation, ".claude/commands")
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert (target / "entry.md").read_text() == "generated asset\n"
+        if kind == "file":
+            assert target.with_name("commands.bak").read_text() == "older backup\n"
+            assert target.with_name("commands.bak.1").read_text() == "local file\n"
+
+
 class TestStowInstallScript:
     """GNU stow 移行用の薄い入口を検証するテスト"""
 
