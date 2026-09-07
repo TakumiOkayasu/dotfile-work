@@ -19,13 +19,33 @@ source ~/.bashrc          # 設定反映
 ./install.sh -u           # アンインストール (リンク削除、バックアップ復元)
 ```
 
-> **Windows**: WSL内で実行する。例: PowerShellから `wsl bash ./install.sh -f`
+> **Windows (WSL)**: `install.sh` はWSL内で実行する。例: PowerShellから `wsl bash ./install.sh -f`。WindowsネイティブのPowerShell設定は次の手順で導入する。
+
+### Windows PowerShellプロファイル
+
+PowerShell 7 (`pwsh`) 用の雛形を `config/shell/powershell/profile.ps1` で管理する。Windows標準のWindows PowerShell 5.1とは別のプロファイルを使用する。
+
+PowerShell 7でリポジトリのルートから実行する。
+
+```powershell
+./scripts/install-powershell.ps1 -WhatIf
+./scripts/install-powershell.ps1
+. $PROFILE.CurrentUserAllHosts
+```
+
+`$PROFILE.CurrentUserAllHosts` に、リポジトリ内の正本をdot-sourceする1行を作成する。Documentsのリダイレクトにも追従し、管理者権限やsymlinkは不要。再実行は同じ内容なら何もしない。既存の異なるプロファイルは上書きせず、手動で追加する読み込み行を表示して終了する。その場合は表示された行を既存プロファイルへ追加する。リポジトリを移動した場合は、この行のパスも更新する。
+
+雛形はbash設定から履歴とGit操作を引き継ぎ、PowerShellの組み込みalias (`gc`, `gp`, `gl`, `ls` など) を維持する。Git用に `g`, `gs`, `ga`, `gd`, `gco`, `gb`, `glog`、移動用に `..`, `...` を用意する。
+
+PATH上にある `mise`, `oh-my-posh`, `zoxide` はこの順に自動初期化する。miseを有効化した後は、通常どおり各コマンドを直接呼び出せる。ツールのインストールやバージョン指定は行わず、各プロジェクトのmise設定を使用する。未導入のツールは省略し、初期化失敗は警告する。Oh My Poshは既定テーマ、または環境変数 `OH_MY_POSH_CONFIG` で指定した設定を使用する。
+
+端末固有の設定は `~/.powershell.local.ps1` に置くと最後に読み込まれる。別のファイルを使う場合は読み込み行に `-LocalProfilePath 'パス'` を指定する。実行ポリシーは変更しないため、スクリプト実行が制限された端末では組織のルールに従って署名等を設定する。解除時は追加した読み込み行だけを削除する (installerが新規作成した1行だけのファイルなら、そのファイルを削除する)。
 
 ## 構成
 
 | ディレクトリ | 配置先 | 内容 |
 | --- | --- | --- |
-| `config/shell/` | `~/` | bash/zsh/fish設定、共通aliases/env |
+| `config/shell/` | `~/`, `$PROFILE.CurrentUserAllHosts` | bash/zsh/fish設定、共通aliases/env、PowerShell雛形 |
 | `config/git/` | `~/`, `~/.config/git/` | Git設定、補完、global ignore、attributes |
 | `config/vim/` | `~/` | .vimrc |
 | `claude/` | `~/.claude/` | Claude Code固有の入力 (agent, hook, settings) |
