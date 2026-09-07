@@ -329,6 +329,34 @@ add_generated_ai_stow_specs() {
     cat "$_generated_specs" >> "$_spec_file"
 }
 
+prepare_stow_target_path() {
+    _pst_package="$1"
+    _pst_remaining="$2"
+    _pst_relative=""
+
+    # Never prepare a leaf through an ancestor symlink: that would modify
+    # the linked source tree, while leaving the actual stow conflict intact.
+    while :; do
+        _pst_part=${_pst_remaining%%/*}
+        _pst_relative=${_pst_relative:+${_pst_relative}/}${_pst_part}
+        _pst_target="${HOME}/${_pst_relative}"
+        _pst_entry=".stow-work/${_pst_package}/${_pst_relative}"
+
+        if [ -L "$_pst_target" ]; then
+            # Stow owns folded directory links and handles unfolding itself.
+            # Stop here even for owned links; do not touch package contents.
+            prepare_stow_target "$_pst_target" "$_pst_package" "$_pst_entry"
+            return $?
+        fi
+        [ -e "$_pst_target" ] || return 0
+        if [ "$_pst_remaining" = "$_pst_part" ] || [ ! -d "$_pst_target" ]; then
+            prepare_stow_target "$_pst_target" "$_pst_package" "$_pst_entry"
+            return $?
+        fi
+        _pst_remaining=${_pst_remaining#*/}
+    done
+}
+
 prepare_stow_targets_from_file() {
     _package="$1"
     _spec_file="$2"
@@ -337,7 +365,7 @@ prepare_stow_targets_from_file() {
     while IFS= read -r _spec; do
         [ -z "$_spec" ] && continue
         _dest="${_spec#*:}"
-        if prepare_stow_target "${HOME}/${_dest}" "$_package" ".stow-work/${_package}/${_dest}"; then
+        if prepare_stow_target_path "$_package" "$_dest"; then
             continue
         else
             _status=$?
