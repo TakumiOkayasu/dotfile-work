@@ -1,6 +1,7 @@
 {
   "env": {
     "ENABLE_LSP_TOOL": "1",
+    "CLAUDE_CODE_THRIFTY_SONIC": "false",
     "EDITOR": "zed --wait",
     "VISUAL": "zed --wait"
   },
